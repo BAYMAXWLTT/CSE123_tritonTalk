@@ -1,0 +1,58 @@
+
+Name: Hongyu Zou PID: A14553614
+
+How my code works:
+At first the sender will parse the command. The command will be parsed into
+one or several frames. Eitherway I attch 8 frame to the outgoing frame
+list. All other commands will wait for one frame to be fully processed
+to be parsed. I used LAR, LFS to keep window size to be 8. And frames out of window will dropped
+Then receiver will handle the outgoing frame for different
+sender. For each sender I set up a string buffer for printing out message
+from different sender. And when receiver get the frame, it will check 
+whether it is for it and will attach the string in the frame to the
+string buffer. Note that it is possible frames arrived out of order,
+so I use sequence number(id field of frame struct) to reassemble frames.
+I use a field named is_end in the frame to indicating this
+is the end of the message sent by this command. When the receiver see 
+this field in the frame and makes sure that it received all frames of the messages 
+it will print out the message in the buffer.
+After receiver got the frame, it will send ack to the sender. Sender will
+get the ack and send remaining frame of this command.
+
+In order to handle frame retransmission, everytime sender sent a message
+it will have its time_val updated to (sending time + 0.09ms), when the
+timed out reached the sender will send this message again.
+
+It is also possible that ack is lost. In this case, my sender will resend this
+message but receiver will not double buffering this message, because receiver
+will keep track of the frame_id and NFE to make sure that the frames it receives are in window. 
+If the receiver saw the id it had seen before, it will not buffer this message and resend the ack.
+
+I also use CRC table to compute CRC faster. When the receiver get the message it will
+recompute the CRC of message and compare it with the CRC attached to the message. If they
+are different the receiver will drop the frame. 
+
+What each major function does:
+
+handle_input_cmds(): This function process commands into frames, attch first 8
+frame to the outging list. This function will only process command only if
+previous command is fully processed by sender and receiver. It also maintains
+the window size to be 8.
+
+handle_incoming_acks(): This function handle acks and send remaining frames of
+this command. If there are remaining frames in the waiting list, this function
+will send these frames while maintaining the window.
+
+sender_get_next_expiring_timeval(): This function directly get the time_val field
+of the sender. Each time sender sends a message it will have its time_val updated
+to the timedout time in the future.
+
+handle_timedout_frames(): This function calculate current time and check if
+the previous frame is lost. It will then resend the frame and update the time_val
+of sender.
+
+handle_incoming_msgs(): This function will buffer the messages from each
+frame for reassembly. It will buffer messages from different sender to different buffers.
+When it detects a sender's messages reach to end, it will double check if the messages 
+have same length. It will reassemble the frames and print the message.
+It also check whether duplicated frames are sent by checking whether the frame_id is within the window.
